@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
+using Orleans.Runtime;
 
 namespace Orleans.GrainDirectory
 {
@@ -26,12 +27,6 @@ namespace Orleans.GrainDirectory
         Task Unregister(GrainAddress address);
 
         /// <summary>
-        /// Unregister a batch of <see cref="GrainAddress"/> entries in the directory.
-        /// </summary>
-        /// <param name="addresses">The grains to unregister</param>
-        Task UnregisterMany(List<GrainAddress> addresses);
-
-        /// <summary>
         /// Lookup for a <see cref="GrainAddress"/> for a given Grain ID.
         /// </summary>
         /// <param name="grainId">The Grain ID to lookup</param>
@@ -52,11 +47,6 @@ namespace Orleans.GrainDirectory
     public class GrainAddress
     {
         /// <summary>
-        /// Address of the silo where the grain activation lives
-        /// </summary>
-        public string SiloAddress { get; set; }
-
-        /// <summary>
         /// Identifier of the Grain
         /// </summary>
         public string GrainId { get; set; }
@@ -66,6 +56,11 @@ namespace Orleans.GrainDirectory
         /// </summary>
         public string ActivationId { get; set; }
 
+        /// <summary>
+        /// Address of the silo where the grain activation lives
+        /// </summary>
+        public string SiloAddress { get; set; }
+
         public override bool Equals(object obj)
         {
             return obj is GrainAddress address &&
@@ -74,13 +69,6 @@ namespace Orleans.GrainDirectory
                    this.ActivationId == address.ActivationId;
         }
 
-        public override int GetHashCode()
-        {
-            var hashCode = 1043893337;
-            hashCode = hashCode * -1521134295 + EqualityComparer<string>.Default.GetHashCode(this.SiloAddress);
-            hashCode = hashCode * -1521134295 + EqualityComparer<string>.Default.GetHashCode(this.GrainId);
-            hashCode = hashCode * -1521134295 + EqualityComparer<string>.Default.GetHashCode(this.ActivationId);
-            return hashCode;
-        }
+        public override int GetHashCode() => HashCode.Combine(this.SiloAddress, this.GrainId, this.ActivationId);
     }
 }

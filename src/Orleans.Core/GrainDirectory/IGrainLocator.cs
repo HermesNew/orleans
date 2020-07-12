@@ -9,13 +9,11 @@ namespace Orleans.GrainDirectory
     /// <summary>
     /// Used to locate Grain activation in the cluster
     /// </summary>
-    interface IGrainLocator
+    public interface IGrainLocator
     {
         Task<ActivationAddress> Register(ActivationAddress address);
 
         Task Unregister(ActivationAddress address, UnregistrationCause cause);
-
-        Task UnregisterMany(List<ActivationAddress> addresses, UnregistrationCause cause);
 
         Task<List<ActivationAddress>> Lookup(GrainId grainId);
 

@@ -20,16 +20,13 @@ namespace Orleans.Runtime.Placement
             List<ActivationAddress> addresses;
 
             // we need to look up the directory entry for this grain on a remote silo
-            switch (target.Category)
+            if (!ClientGrainId.TryParse(target, out var clientId))
             {
-                case UniqueKey.Category.Client:
-                    {
-                        addresses = await context.FullLookup(target);
-                        return ChooseRandomActivation(addresses, context);
-                    }
-                default:
-                    throw new InvalidOperationException("Unsupported client type. Grain " + target);
+                throw new InvalidOperationException($"Unsupported id format: {target}");
             }
+
+            addresses = await context.FullLookup(clientId.GrainId);
+            return ChooseRandomActivation(addresses, context);
         }
         
         public override Task<SiloAddress> OnAddActivation(
@@ -37,7 +34,7 @@ namespace Orleans.Runtime.Placement
             PlacementTarget target, 
             IPlacementContext context)
         {
-            throw new InvalidOperationException("Client Observers are not activated using the placement subsystem. Grain " + target.GrainIdentity);
+            throw new ClientNotAvailableException(target.GrainIdentity);
         }
     }
 }

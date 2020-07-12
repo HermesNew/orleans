@@ -33,7 +33,7 @@ namespace Orleans.Storage
         private SerializationManager serializationManager;
         private IGrainFactory grainFactory;
         private ITypeResolver typeResolver;
-        private ILoggerFactory loggerFactory;
+        private readonly IServiceProvider services;
 
         /// <summary> Default constructor </summary>
         public AzureBlobGrainStorage(
@@ -42,15 +42,16 @@ namespace Orleans.Storage
             SerializationManager serializationManager,
             IGrainFactory grainFactory,
             ITypeResolver typeResolver,
-            ILoggerFactory loggerFactory)
+            IServiceProvider services,
+            ILogger<AzureBlobGrainStorage> logger)
         {
             this.name = name;
             this.options = options;
             this.serializationManager = serializationManager;
             this.grainFactory = grainFactory;
             this.typeResolver = typeResolver;
-            this.loggerFactory = loggerFactory;
-            this.logger = this.loggerFactory.CreateLogger($"{typeof(AzureTableGrainStorageFactory).FullName}.{name}");
+            this.services = services;
+            this.logger = logger;
         }
 
         /// <summary> Read state data function for this storage provider. </summary>
@@ -87,7 +88,12 @@ namespace Orleans.Storage
                 if (contents == null || contents.Length == 0)
                 {
                     if (this.logger.IsEnabled(LogLevel.Trace)) this.logger.Trace((int)AzureProviderErrorCode.AzureBlobProvider_BlobEmpty, "BlobEmpty reading: GrainType={0} Grainid={1} ETag={2} from BlobName={3} in Container={4}", grainType, grainId, grainState.ETag, blobName, container.Name);
+                    grainState.RecordExists = false;
                     return;
+                }
+                else
+                {
+                    grainState.RecordExists = true;
                 }
 
                 grainState.State = this.ConvertFromStorageFormat(contents);
@@ -153,6 +159,7 @@ namespace Orleans.Storage
                     blob, grainState.ETag).ConfigureAwait(false);
 
                 grainState.ETag = null;
+                grainState.RecordExists = false;
 
                 if (this.logger.IsEnabled(LogLevel.Trace)) this.logger.Trace((int)AzureProviderErrorCode.AzureBlobProvider_Cleared, "Cleared: GrainType={0} Grainid={1} ETag={2} BlobName={3} in Container={4}", grainType, grainId, blob.Properties.ETag, blobName, container.Name);
             }
@@ -174,6 +181,7 @@ namespace Orleans.Storage
                     blob, grainState.ETag).ConfigureAwait(false);
 
                 grainState.ETag = blob.Properties.ETag;
+                grainState.RecordExists = true;
             }
             catch (StorageException exception) when (exception.IsContainerNotFound())
             {
@@ -211,7 +219,7 @@ namespace Orleans.Storage
             {
                 this.logger.LogInformation((int)AzureProviderErrorCode.AzureTableProvider_InitProvider, $"AzureTableGrainStorage initializing: {this.options.ToString()}");
                 this.logger.LogInformation((int)AzureProviderErrorCode.AzureTableProvider_ParamConnectionString, "AzureTableGrainStorage is using DataConnectionString: {0}", ConfigUtilities.RedactConnectionStringInfo(this.options.ConnectionString));
-                this.jsonSettings = OrleansJsonSerializer.UpdateSerializerSettings(OrleansJsonSerializer.GetDefaultSerializerSettings(this.typeResolver, this.grainFactory), this.options.UseFullAssemblyNames, this.options.IndentJson, this.options.TypeNameHandling);
+                this.jsonSettings = OrleansJsonSerializer.UpdateSerializerSettings(OrleansJsonSerializer.GetDefaultSerializerSettings(this.services), this.options.UseFullAssemblyNames, this.options.IndentJson, this.options.TypeNameHandling);
 
                 this.options.ConfigureJsonSerializerSettings?.Invoke(this.jsonSettings);
 

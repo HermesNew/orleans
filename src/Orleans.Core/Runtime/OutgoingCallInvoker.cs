@@ -52,15 +52,21 @@ namespace Orleans.Runtime
             get
             {
                 var implementationType = this.grainReference.GetType();
+                foreach (var @interface in implementationType.GetInterfaces())
+                {
+                    // Get or create the implementation map for this object.
+                    var implementationMap = mapping.GetOrCreate(
+                        implementationType,
+                        @interface);
 
-                // Get or create the implementation map for this object.
-                var implementationMap = mapping.GetOrCreate(
-                    implementationType,
-                    request.InterfaceId);
+                    // Get the method info for the method being invoked.
+                    if (implementationMap.TryGetValue(request.MethodId, out var method))
+                    {
+                        return method.InterfaceMethod;
+                    }
+                }
 
-                // Get the method info for the method being invoked.
-                implementationMap.TryGetValue(request.MethodId, out var method);
-                return method.InterfaceMethod;
+                return null;
             }
         }
 
@@ -76,29 +82,36 @@ namespace Orleans.Runtime
         /// <inheritdoc />
         public async Task Invoke()
         {
-            // Execute each stage in the pipeline. Each successive call to this method will invoke the next stage.
-            // Stages which are not implemented (eg, because the user has not specified an interceptor) are skipped.
-            var numFilters = filters.Length;
-            if (stage < numFilters)
+            try
             {
-                // Call each of the specified interceptors.
-                var systemWideFilter = this.filters[stage];
-                stage++;
-                await systemWideFilter.Invoke(this);
-                return;
-            }
-
-            if (stage == numFilters)
-            {
-                // Finally call the root-level invoker.
-                stage++;
-                var resultTask = this.sendRequest(this.grainReference, this.request, this.options);
-                if (resultTask != null)
+                // Execute each stage in the pipeline. Each successive call to this method will invoke the next stage.
+                // Stages which are not implemented (eg, because the user has not specified an interceptor) are skipped.
+                var numFilters = filters.Length;
+                if (stage < numFilters)
                 {
-                    this.Result = await resultTask;
+                    // Call each of the specified interceptors.
+                    var systemWideFilter = this.filters[stage];
+                    stage++;
+                    await systemWideFilter.Invoke(this);
+                    return;
                 }
 
-                return;
+                if (stage == numFilters)
+                {
+                    // Finally call the root-level invoker.
+                    stage++;
+                    var resultTask = this.sendRequest(this.grainReference, this.request, this.options);
+                    if (resultTask != null)
+                    {
+                        this.Result = await resultTask;
+                    }
+
+                    return;
+                }
+            }
+            finally
+            {
+                stage--;
             }
 
             // If this method has been called more than the expected number of times, that is invalid.

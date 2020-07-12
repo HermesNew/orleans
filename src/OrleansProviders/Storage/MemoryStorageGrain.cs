@@ -12,6 +12,7 @@ namespace Orleans.Storage
     /// Implementation class for the Storage Grain used by In-memory storage provider
     /// <c>Orleans.Storage.MemoryStorage</c>
     /// </summary>
+    [KeepAlive]
     internal class MemoryStorageGrain : Grain, IMemoryStorageGrain
     {
         private Dictionary<(string, string), IGrainState> grainStore;
@@ -105,6 +106,7 @@ namespace Orleans.Storage
             public object State { get; set; }
             public Type Type => typeof(object);
             public string ETag { get; set; } = string.Empty;
+            public bool RecordExists { get; set; }
         }
         private readonly IGrainState deleted = new DeletedState();
     }

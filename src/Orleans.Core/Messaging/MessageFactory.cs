@@ -31,7 +31,6 @@ namespace Orleans.Runtime
                 IsUnordered = (options & InvokeMethodOptions.Unordered) != 0,
                 IsAlwaysInterleave = (options & InvokeMethodOptions.AlwaysInterleave) != 0,
                 BodyObject = request,
-                IsUsingInterfaceVersions = request.InterfaceVersion > 0,
                 RequestContextData = RequestContextExtensions.Export(this.serializationManager)
             };
 
@@ -117,9 +116,9 @@ namespace Orleans.Runtime
                 {
                     response.SendingActivation = request.TargetActivation;
                 }
-                else if (request.TargetGrain.IsSystemTarget)
+                else if (request.TargetGrain.IsSystemTarget())
                 {
-                    response.SendingActivation = ActivationId.GetSystemActivation(request.TargetGrain, request.TargetSilo);
+                    response.SendingActivation = ActivationId.GetDeterministic(request.TargetGrain);
                 }
             }
 

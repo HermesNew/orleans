@@ -41,10 +41,10 @@ namespace Orleans.Storage
         private readonly string name;
 
         /// <summary> Default constructor. </summary>
-        public MemoryGrainStorage(string name, MemoryGrainStorageOptions options, ILoggerFactory loggerFactory, IGrainFactory grainFactory)
+        public MemoryGrainStorage(string name, MemoryGrainStorageOptions options, ILogger<MemoryGrainStorage> logger, IGrainFactory grainFactory)
         {
             this.name = name;
-            this.logger = loggerFactory.CreateLogger($"{this.GetType().FullName}.{name}");
+            this.logger = logger;
 
             //Init
             logger.LogInformation("Init: Name={Name} NumStorageGrains={NumStorageGrains}", name, options.NumStorageGrains);
@@ -72,6 +72,7 @@ namespace Orleans.Storage
             {
                 grainState.ETag = state.ETag;
                 grainState.State = state.State;
+                grainState.RecordExists = true;
             }
         }
 
@@ -86,6 +87,7 @@ namespace Orleans.Storage
             try
             {
                 grainState.ETag = await storageGrain.WriteStateAsync(STATE_STORE_NAME, key, grainState);
+                grainState.RecordExists = true;
             }
             catch (MemoryStorageEtagMismatchException e)
             {
@@ -105,6 +107,7 @@ namespace Orleans.Storage
             {
                 await storageGrain.DeleteStateAsync(STATE_STORE_NAME, key, grainState.ETag);
                 grainState.ETag = null;
+                grainState.RecordExists = false;
             }
             catch (MemoryStorageEtagMismatchException e)
             {
@@ -117,7 +120,7 @@ namespace Orleans.Storage
             return new[]
             {
                 Tuple.Create("GrainType", grainType),
-                Tuple.Create("GrainId", grain.ToKeyString())
+                Tuple.Create("GrainId", grain.GrainId.ToString())
             };
         }
 
@@ -134,7 +137,7 @@ namespace Orleans.Storage
     /// <summary>
     /// Factory for creating MemoryGrainStorage
     /// </summary>
-    public class MemoryGrainStorageFactory
+    public static class MemoryGrainStorageFactory
     {
         public static IGrainStorage Create(IServiceProvider services, string name)
         {

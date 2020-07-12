@@ -1,16 +1,14 @@
 using System;
+
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Orleans.GrainDirectory;
-using Orleans.Hosting;
 using Orleans.Runtime.Scheduler;
 using Orleans.Configuration;
-using System.ComponentModel;
 using System.Collections.Immutable;
 
 namespace Orleans.Runtime.GrainDirectory
@@ -128,8 +126,8 @@ namespace Orleans.Runtime.GrainDirectory
             localRegistrar = new ClusterLocalRegistrar(DirectoryPartition);
             HandoffManager = new GrainDirectoryHandoffManager(this, siloStatusOracle, grainFactory, grainDirectoryPartitionFactory, loggerFactory);
 
-            RemoteGrainDirectory = new RemoteGrainDirectory(this, Constants.DirectoryServiceId, loggerFactory);
-            CacheValidator = new RemoteGrainDirectory(this, Constants.DirectoryCacheValidatorId, loggerFactory);
+            RemoteGrainDirectory = new RemoteGrainDirectory(this, Constants.DirectoryServiceType, loggerFactory);
+            CacheValidator = new RemoteGrainDirectory(this, Constants.DirectoryCacheValidatorType, loggerFactory);
 
             // add myself to the list of members
             AddServer(MyAddress);
@@ -456,9 +454,9 @@ namespace Orleans.Runtime.GrainDirectory
         public SiloAddress CalculateGrainDirectoryPartition(GrainId grainId)
         {
             // give a special treatment for special grains
-            if (grainId.IsSystemTarget)
+            if (grainId.IsSystemTarget())
             {
-                if (Constants.SystemMembershipTableId.Equals(grainId))
+                if (Constants.SystemMembershipTableType.Equals(grainId))
                 {
                     if (Seed == null)
                     {
@@ -537,7 +535,7 @@ namespace Orleans.Runtime.GrainDirectory
             if (hopCount >= HOP_LIMIT)
             {
                 // we are not forwarding because there were too many hops already
-                throw new OrleansException(string.Format("Silo {0} is not owner of {1}, cannot forward {2} to owner {3} because hop limit is reached", MyAddress, grainId, operationDescription, owner));
+                throw new OrleansException($"Silo {MyAddress} is not owner of {grainId}, cannot forward {operationDescription} to owner {owner} because hop limit is reached");
             }
 
             // forward to the silo that we think is the owner
@@ -562,7 +560,11 @@ namespace Orleans.Runtime.GrainDirectory
             {
                 await Task.Delay(RETRY_DELAY);
                 forwardAddress = this.CheckIfShouldForward(address.Grain, hopCount, "RegisterAsync");
-                this.log.LogWarning($"RegisterAsync - It seems we are not the owner of activation {address}, trying to forward it to {forwardAddress} (hopCount={hopCount})");
+                if (forwardAddress is object)
+                {
+                    int hash = unchecked((int)address.Grain.GetUniformHashCode());
+                    this.log.LogWarning($"RegisterAsync - It seems we are not the owner of activation {address} (hash: {hash:X}), trying to forward it to {forwardAddress} (hopCount={hopCount})");
+                }
             }
 
             if (forwardAddress == null)
@@ -827,7 +829,11 @@ namespace Orleans.Runtime.GrainDirectory
             {
                 await Task.Delay(RETRY_DELAY);
                 forwardAddress = this.CheckIfShouldForward(grainId, hopCount, "LookUpAsync");
-                this.log.LogWarning($"LookupAsync - It seems we are not the owner of grain {grainId}, trying to forward it to {forwardAddress} (hopCount={hopCount})");
+                if (forwardAddress is object)
+                {
+                    int hash = unchecked((int)grainId.GetUniformHashCode());
+                    this.log.LogWarning($"LookupAsync - It seems we are not the owner of grain {grainId} (hash: {hash:X}), trying to forward it to {forwardAddress} (hopCount={hopCount})");
+                }
             }
 
             if (forwardAddress == null)
@@ -1041,7 +1047,7 @@ namespace Orleans.Runtime.GrainDirectory
 
         internal IRemoteGrainDirectory GetDirectoryReference(SiloAddress silo)
         {
-            return this.grainFactory.GetSystemTarget<IRemoteGrainDirectory>(Constants.DirectoryServiceId, silo);
+            return this.grainFactory.GetSystemTarget<IRemoteGrainDirectory>(Constants.DirectoryServiceType, silo);
         }
 
         private bool IsSiloNextInTheRing(SiloAddress siloAddr, int hash, bool excludeMySelf)
